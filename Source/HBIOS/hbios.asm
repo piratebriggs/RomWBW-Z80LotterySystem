@@ -630,6 +630,26 @@ HBX_ROM:
 	RET				; DONE
 #ENDIF
 ;
+#IF (MEMMGR == MM_LOT)
+;
+; We only have RAM Banks available
+; SO, WE MAP HBIOS HBIOS BANKS $80-$8F (RAM SELECT) TO $00-$F0. (High nibble)
+; Selecting BANKS $00-$0F (ROM SELECT) will do nothing
+;
+	BIT	7,A			; BIT 7 SET REQUESTS RAM PAGE
+	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
+	RES	7,A			; RAM PAGE REQUESTED: CLEAR ROM BIT
+	RLA				; Rotate left 4 times
+	RLA
+	RLA
+	RLA
+	OUT	($16),A			; DO IT
+	RET				; AND DONE
+;
+HBX_ROM:
+	RET				; DONE
+#ENDIF
+;
 ;
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ; Copy Data - Possibly between banks.  This resembles CP/M 3, but
@@ -1146,6 +1166,14 @@ Z280_BOOTERR	.TEXT	"\r\n\r\n*** Application mode boot not supported under Z280 n
 	DI				; NO INTERRUPTS
 	IM	1			; INTERRUPT MODE 1
 ;
+#IF (PLATFORM == PLT_LOT)
+kPIO_M:     .EQU $17	; PIO Config
+kPIO_CFG:	.EQU $80	; Active, Mode 0, A & B & C Outputs
+	; Init PIO
+	LD A,kPIO_CFG 		; Load PIO Config vakue
+	OUT (kPIO_M),A		; Set PIO Config
+#ENDIF
+;
 #IF ((PLATFORM == PLT_DUO) & TRUE)
 	; WAIT A WHILE
 	LD	HL,0
@@ -1165,6 +1193,7 @@ BOOTWAIT:
 	; RTCDEF WHICH IS SUBOPTIMAL, BUT PROBABLY DOES NOT CAUSE ANY
 	; PROBLEMS.
 	;LD	A,(RTCDEFVAL)		; GET DEFAULT VALUE
+
 	LD	A,RTCDEF		; DEFAULT VALUE
 	OUT	(RTCIO),A		; SET IT
 ;
