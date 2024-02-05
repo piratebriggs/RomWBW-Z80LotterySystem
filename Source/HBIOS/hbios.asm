@@ -637,16 +637,22 @@ HBX_ROM:
 ; Selecting BANKS $00-$0F (ROM SELECT) will do nothing
 ;
 	BIT	7,A			; BIT 7 SET REQUESTS RAM PAGE
-	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
+	JR	Z,HBX_ROM	; NOT SET, SELECT ROM PAGE
 	RES	7,A			; RAM PAGE REQUESTED: CLEAR ROM BIT
+	ADD	A,8			; Skip "rom" banks
 	RLA				; Rotate left 4 times
 	RLA
 	RLA
 	RLA
-	OUT	($16),A			; DO IT
+	OUT	($16),A		; DO IT
 	RET				; AND DONE
 ;
 HBX_ROM:
+	RLA				; Rotate left 4 times
+	RLA
+	RLA
+	RLA
+	OUT	($16),A		; DO IT
 	RET				; DONE
 #ENDIF
 ;
