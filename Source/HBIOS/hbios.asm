@@ -437,6 +437,23 @@ HBX_INVSP	.EQU	$ - 2
 ;
 	RET				; RETURN TO CALLER
 ;
+
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;; Sets PII control word to value passed in A
+;; Uses : BC
+;; This will reset PortC which controls our lower 32k banking
+;; So we preserve the contents of Port C and restore after writing the control word
+;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;
+#IF (PLATFORM == PLT_LOT)
+HBX_PII_MODE:
+	LD C, PPI_PORTC
+	IN B,(C)	; Save port C
+	OUT (PPI_CTL),A		; Write Control Word
+	OUT (C),B	; Reset port C
+	RET
+#ENDIF
+
 ;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ;; BNKSEL - Switch Memory Bank to Bank in A.
 ;;   Preserve all Registers including Flags.
@@ -636,24 +653,24 @@ HBX_ROM:
 ; SO, WE MAP HBIOS HBIOS BANKS $80-$8F (RAM SELECT) TO $00-$F0. (High nibble)
 ; Selecting BANKS $00-$0F (ROM SELECT) will do nothing
 ;
-	BIT	7,A			; BIT 7 SET REQUESTS RAM PAGE
-	JR	Z,HBX_ROM	; NOT SET, SELECT ROM PAGE
-	RES	7,A			; RAM PAGE REQUESTED: CLEAR ROM BIT
-	ADD	A,8			; Skip "rom" banks
-	RLA				; Rotate left 4 times
+	BIT	7,A				; BIT 7 SET REQUESTS RAM PAGE
+	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
+	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT
+	ADD	A,8				; Skip "rom" banks
+	RLA					; Rotate left 4 times
 	RLA
 	RLA
 	RLA
-	OUT	($16),A		; DO IT
-	RET				; AND DONE
+	OUT	(PPI_PORTC),A	; DO IT
+	RET					; AND DONE
 ;
 HBX_ROM:
-	RLA				; Rotate left 4 times
+	RLA					; Rotate left 4 times
 	RLA
 	RLA
 	RLA
-	OUT	($16),A		; DO IT
-	RET				; DONE
+	OUT	(PPI_PORTC),A	; DO IT
+	RET					; DONE
 #ENDIF
 ;
 ;
@@ -1173,11 +1190,9 @@ Z280_BOOTERR	.TEXT	"\r\n\r\n*** Application mode boot not supported under Z280 n
 	IM	1			; INTERRUPT MODE 1
 ;
 #IF (PLATFORM == PLT_LOT)
-kPIO_M:     .EQU $17	; PIO Config
-kPIO_CFG:	.EQU $80	; Active, Mode 0, A & B & C Outputs
-	; Init PIO
-	LD A,kPIO_CFG 		; Load PIO Config vakue
-	OUT (kPIO_M),A		; Set PIO Config
+	; Init PPI
+	LD A,PII_CTL_OUT 		; Load PPI control data
+	OUT (PPI_CTL),A			; Set PPI Control Word
 #ENDIF
 ;
 #IF ((PLATFORM == PLT_DUO) & TRUE)

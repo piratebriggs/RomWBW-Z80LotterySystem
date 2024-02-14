@@ -13,6 +13,16 @@
 ; the code for these interfaces is included as needed.  See
 ; chusb.asm and chsd.asm.
 ;
+
+CH0_A0_SET	.EQU	00000001B	; PC0 = A0
+CH0_A0_CLR	.EQU	00000000B
+CH0_CS_SET	.EQU	00000011B	; PC1 = CS
+CH0_CS_CLR	.EQU	00000010B
+CH0_RD_SET	.EQU	00000101B	; PC2 = RD
+CH0_RD_CLR	.EQU	00000100B
+CH0_WR_SET	.EQU	00000111B	; PC3 = WR
+CH0_WR_CLR	.EQU	00000110B
+;
 ; CH DEVICE TYPES
 ;
 CHTYP_NONE	.EQU	0		; NONE
@@ -106,7 +116,10 @@ CH_CFG0:	; DEVICE 0
 	.DW	CHSD_CFG0		; SD CARD SUB-DRIVER INIT ADR
 ;
 	.ECHO	"CH: IO="
-	.ECHO	CH0BASE
+	.ECHO	PPI_PORTB
+	.ECHO	"\n"
+	.ECHO	"CH: CTL="
+	.ECHO	PPI_CTL
 	.ECHO	"\n"
 #ENDIF
 ;
@@ -167,6 +180,17 @@ CH_INIT2:
 	; GIVING UP FOR NOW AND REMOVING THE RESET.
 ;
 	;CALL	CH_RESET		; FULL CH37X RESET
+	;
+	; PPICH Init
+	LD		C,PPI_CTL
+	LD		A,CH0_A0_CLR
+	OUT		(C),A		; Clear A0
+	LD		A,CH0_CS_CLR
+	OUT		(C),A		; Clear CS
+	LD		A,CH0_RD_CLR
+	OUT		(C),A		; Clear RD
+	LD		A,CH0_WR_CLR
+	OUT		(C),A		; Clear WR
 ;
 	CALL	CH_DETECT		; DETECT CHIP PRESENCE
 	JR	Z,CH_INIT3		; GO AHEAD IF CHIP FOUND
@@ -234,32 +258,114 @@ CH_INIT4:
 ; SEND COMMAND IN A
 ;
 CH_CMD:
-	LD	C,(IY+CH_IOBASE)	; BASE PORT
-	INC	C			; BUMP TO CMD PORT
-	OUT	(C),A			; SEND COMMAND
+	PUSH	BC
+	PUSH	AF
+	LD		A,PII_CTL_OUT		; Port B output
+	CALL	HBX_PII_MODE		; write control word
+	LD		C,PPI_CTL
+	LD		B,CH0_CS_SET		; CS=1
+	OUT		(C),B				; bit select
+	LD		B,CH0_A0_SET		; A0=1
+	OUT		(C),B				; bit select
+	;
+	POP		AF
+	OUT		(PPI_PORTB),A		; write data
+	;
+	LD		B,CH0_WR_SET		; WR=1
+	OUT		(C),B				; bit select
+	LD		B,CH0_WR_CLR		; WR=0
+	OUT		(C),B				; bit select
+	POP		BC
 	CALL	CH_NAP			; *DEBUG*
 	RET
 ;
 ; GET STATUS
 ;
 CH_STAT:
-	LD	C,(IY+CH_IOBASE)	; BASE PORT
-	INC	C			; BUMP TO CMD PORT
-	IN	A,(C)			; READ STATUS
+	PUSH	BC
+	LD		A,PII_CTL_BIN		; Port B input
+	CALL	HBX_PII_MODE		; write control word
+	LD		C,PPI_CTL
+	LD		B,CH0_A0_SET		; A0=1
+	OUT		(C),B				; bit select
+	LD		C,CH0_RD_SET		; RD=1
+	OUT		(C),B				; bit select
+	;
+	IN		A,(PPI_PORTB)			; read data
+	;
+	LD		B,CH0_RD_CLR		; RD=0
+	OUT		(C),B				; bit select
+	POP		BC
 	RET
 ;
 ; READ A BYTE FROM DATA PORT
 ;
 CH_RD:
-	LD	C,(IY+CH_IOBASE)	; BASE PORT
-	IN	A,(C)			; READ BYTE
+	PUSH	BC
+	LD		A,PII_CTL_BIN		; Port B input
+	CALL	HBX_PII_MODE		; write control word
+	LD		C,PPI_CTL
+	LD		B,CH0_A0_CLR		; A0=0
+	OUT		(C),B				; bit select
+	LD		B,CH0_RD_SET		; RD=1
+	OUT		(C),B				; bit select
+	;
+	IN		A,(PPI_PORTB)			; read data
+	;
+	LD		B,CH0_RD_CLR		; RD=0
+	OUT		(C),B		; bit select
+	POP		BC
+	RET
+;
+; READ A BYTE WITHOUT SETUP
+; USES: C
+; RETURNS: A
+;
+CH_RD_FAST:
+	LD		A,CH0_RD_SET		; RD=1
+	OUT		(PPI_CTL),A				; bit select
+	;
+	IN		A,(PPI_PORTB)			; read data
+	LD		C,A
+	;
+	LD		A,CH0_RD_CLR		; RD=0
+	OUT		(PPI_CTL),A				; bit select
+	LD		A,C
 	RET
 ;
 ; WRITE A BYTE TO DATA PORT
 ;
 CH_WR:
-	LD	C,(IY+CH_IOBASE)	; BASE PORT
-	OUT	(C),A			; READ BYTE
+	PUSH	BC
+	PUSH 	AF
+	LD		A,PII_CTL_OUT		; Port B output
+	CALL	HBX_PII_MODE		; write control word
+	LD		C,PPI_CTL
+	LD		B,CH0_A0_CLR		; A0=0
+	OUT		(C),B				; bit select
+	;
+	POP		AF
+	OUT		(PPI_PORTB),A		; write data
+	;
+	LD		B,CH0_WR_SET		; WR=1
+	OUT		(C),B				; bit select
+	LD		B,CH0_WR_CLR		; WR=0
+	OUT		(C),B				; bit select
+	POP		BC
+	RET
+;
+; WRITE A BYTE WITHOUT SETUP
+; USES: C, A
+;
+CH_WR_FAST:
+	LD		C,PPI_CTL
+	;
+	OUT		(PPI_PORTB),A		; write data
+	;
+	LD		A,CH0_WR_SET		; WR=1
+	OUT		(C),A				; bit select
+	LD		A,CH0_WR_CLR		; WR=0
+	OUT		(C),A				; bit select
 	RET
 ;
 ; SMALL DELAY REQUIRED AT STRATEGIC LOCATIONS
