@@ -661,6 +661,7 @@ HBX_ROM:
 	RLA
 	RLA
 	RLA
+	OR	$0E				; set bits 1, 2, 3
 	OUT	(PPI_PORTC),A	; DO IT
 	RET					; AND DONE
 ;
@@ -669,6 +670,7 @@ HBX_ROM:
 	RLA
 	RLA
 	RLA
+	OR	$0E				; set bits 1, 2, 3
 	OUT	(PPI_PORTC),A	; DO IT
 	RET					; DONE
 #ENDIF

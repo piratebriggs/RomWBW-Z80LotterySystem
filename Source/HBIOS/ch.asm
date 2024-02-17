@@ -180,17 +180,6 @@ CH_INIT2:
 	; GIVING UP FOR NOW AND REMOVING THE RESET.
 ;
 	;CALL	CH_RESET		; FULL CH37X RESET
-	;
-	; PPICH Init
-	LD		C,PPI_CTL
-	LD		A,CH0_A0_CLR
-	OUT		(C),A		; Clear A0
-	LD		A,CH0_CS_CLR
-	OUT		(C),A		; Clear CS
-	LD		A,CH0_RD_CLR
-	OUT		(C),A		; Clear RD
-	LD		A,CH0_WR_CLR
-	OUT		(C),A		; Clear WR
 ;
 	CALL	CH_DETECT		; DETECT CHIP PRESENCE
 	JR	Z,CH_INIT3		; GO AHEAD IF CHIP FOUND
@@ -200,8 +189,8 @@ CH_INIT2:
 ;
 CH_INIT3:
 	CALL	CH_GETVER		; GET VERSION BYTE
-	;CALL	PC_SPACE		; *DEBUG*
-	;CALL	PRTHEXBYTE		; *DEBUG*
+	CALL	PC_SPACE		; *DEBUG*
+	CALL	PRTHEXBYTE		; *DEBUG*
 ;
 	LD	B,A			; SAVE IN REG B
 	AND	$C0			; ISOLATE CHIP TYPE BITS
@@ -263,7 +252,7 @@ CH_CMD:
 	LD		A,PII_CTL_OUT		; Port B output
 	CALL	HBX_PII_MODE		; write control word
 	LD		C,PPI_CTL
-	LD		B,CH0_CS_SET		; CS=1
+	LD		B,CH0_CS_CLR		; CS#=0
 	OUT		(C),B				; bit select
 	LD		B,CH0_A0_SET		; A0=1
 	OUT		(C),B				; bit select
@@ -271,9 +260,9 @@ CH_CMD:
 	POP		AF
 	OUT		(PPI_PORTB),A		; write data
 	;
-	LD		B,CH0_WR_SET		; WR=1
+	LD		B,CH0_WR_CLR		; WR#=0
 	OUT		(C),B				; bit select
-	LD		B,CH0_WR_CLR		; WR=0
+	LD		B,CH0_WR_SET		; WR#=1
 	OUT		(C),B				; bit select
 	POP		BC
 	CALL	CH_NAP			; *DEBUG*
@@ -288,12 +277,12 @@ CH_STAT:
 	LD		C,PPI_CTL
 	LD		B,CH0_A0_SET		; A0=1
 	OUT		(C),B				; bit select
-	LD		C,CH0_RD_SET		; RD=1
+	LD		C,CH0_RD_CLR		; RD#=0
 	OUT		(C),B				; bit select
 	;
 	IN		A,(PPI_PORTB)			; read data
 	;
-	LD		B,CH0_RD_CLR		; RD=0
+	LD		B,CH0_RD_SET		; RD#=1
 	OUT		(C),B				; bit select
 	POP		BC
 	RET
@@ -307,12 +296,12 @@ CH_RD:
 	LD		C,PPI_CTL
 	LD		B,CH0_A0_CLR		; A0=0
 	OUT		(C),B				; bit select
-	LD		B,CH0_RD_SET		; RD=1
+	LD		B,CH0_RD_CLR		; RD#=0
 	OUT		(C),B				; bit select
 	;
-	IN		A,(PPI_PORTB)			; read data
+	IN		A,(PPI_PORTB)		; read data
 	;
-	LD		B,CH0_RD_CLR		; RD=0
+	LD		B,CH0_RD_SET		; RD#=1
 	OUT		(C),B		; bit select
 	POP		BC
 	RET
@@ -322,14 +311,14 @@ CH_RD:
 ; RETURNS: A
 ;
 CH_RD_FAST:
-	LD		A,CH0_RD_SET		; RD=1
-	OUT		(PPI_CTL),A				; bit select
+	LD		A,CH0_RD_CLR		; RD#=0
+	OUT		(PPI_CTL),A			; bit select
 	;
-	IN		A,(PPI_PORTB)			; read data
+	IN		A,(PPI_PORTB)		; read data
 	LD		C,A
 	;
-	LD		A,CH0_RD_CLR		; RD=0
-	OUT		(PPI_CTL),A				; bit select
+	LD		A,CH0_RD_SET		; RD#=0
+	OUT		(PPI_CTL),A			; bit select
 	LD		A,C
 	RET
 ;
@@ -347,9 +336,9 @@ CH_WR:
 	POP		AF
 	OUT		(PPI_PORTB),A		; write data
 	;
-	LD		B,CH0_WR_SET		; WR=1
+	LD		B,CH0_WR_CLR		; WR#=0
 	OUT		(C),B				; bit select
-	LD		B,CH0_WR_CLR		; WR=0
+	LD		B,CH0_WR_SET		; WR#=1
 	OUT		(C),B				; bit select
 	POP		BC
 	RET
@@ -362,9 +351,9 @@ CH_WR_FAST:
 	;
 	OUT		(PPI_PORTB),A		; write data
 	;
-	LD		A,CH0_WR_SET		; WR=1
+	LD		A,CH0_WR_CLR		; WR#=0
 	OUT		(C),A				; bit select
-	LD		A,CH0_WR_CLR		; WR=0
+	LD		A,CH0_WR_SET		; WR#=1
 	OUT		(C),A				; bit select
 	RET
 ;
@@ -473,16 +462,16 @@ CH_FLUSH1:
 ;
 ;
 CH_DETECT:
-	;PRTS("\r\nDETECT:$")		; *DEBUG*
+	PRTS("\r\nDETECT:$")		; *DEBUG*
 CH_DETECT1:
 	LD	A,CH_CMD_EXIST		; LOAD COMMAND
 	CALL	CH_CMD			; SEND COMMAND
 	LD	A,$AA			; LOAD CHECK PATTERN
 	CALL	CH_WR			; SEND IT
 	CALL	CH_NAP			; SMALL DELAY
-	CALL	CH_RD			; GET ECHO
-	;CALL	PC_SPACE		; *DEBUG*
-	;CALL	PRTHEXBYTE		; *DEBUG*
+	CALL	CH_STAT			; GET ECHO
+	CALL	PC_SPACE		; *DEBUG*
+	CALL	PRTHEXBYTE		; *DEBUG*
 	CP	$55			; SHOULD BE INVERTED
 	RET				; RETURN
 ;
