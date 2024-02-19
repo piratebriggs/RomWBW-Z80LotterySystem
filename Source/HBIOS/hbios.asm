@@ -650,28 +650,21 @@ HBX_ROM:
 #IF (MEMMGR == MM_LOT)
 ;
 ; We only have RAM Banks available
-; SO, WE MAP HBIOS HBIOS BANKS $80-$8F (RAM SELECT) TO $00-$F0. (High nibble)
-; Selecting BANKS $00-$0F (ROM SELECT) will do nothing
+; So, we map HBIOS banks $80-$8F (RAM SELECT) to $08-$0F.
+; And map $00-$0F (ROM SELECT) to $00-$07
+; This will de-select the CH376 and clear any diag leds
 ;
 	BIT	7,A				; BIT 7 SET REQUESTS RAM PAGE
 	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
 	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT
 	ADD	A,8				; Skip "rom" banks
-	RLA					; Rotate left 4 times
-	RLA
-	RLA
-	RLA
-	OR	$0E				; set bits 1, 2, 3
-	OUT	(PPI_PORTC),A	; DO IT
+	SET	7,A				; set bit 7 (CH376_CS#)
+	OUT	(PPI_PORTB),A	; DO IT
 	RET					; AND DONE
 ;
 HBX_ROM:
-	RLA					; Rotate left 4 times
-	RLA
-	RLA
-	RLA
-	OR	$0E				; set bits 1, 2, 3
-	OUT	(PPI_PORTC),A	; DO IT
+	SET	7,A				; set bit 7 (CH376_CS#)
+	OUT	(PPI_PORTB),A	; DO IT
 	RET					; DONE
 #ENDIF
 ;
@@ -1192,9 +1185,15 @@ Z280_BOOTERR	.TEXT	"\r\n\r\n*** Application mode boot not supported under Z280 n
 	IM	1			; INTERRUPT MODE 1
 ;
 #IF (PLATFORM == PLT_LOT)
-	; Init PPI
-	LD A,PII_CTL_OUT 		; Load PPI control data
-	OUT (PPI_CTL),A			; Set PPI Control Word
+	; Init PPI Control Word
+	LD A,PPI_CTL_DAT 		; Load PPI control data
+	OUT (PPI_CTL),A		; Set PPI Control Word
+	; SET CH376 CS# = 1
+	LD A,$80 				; 
+	OUT (PPI_PORTB),A		; 
+	; SET CH376 WR#, RD#, A0 = 1
+	LD A,$07 				; 
+	OUT (PPI_PORTC),A		; 
 #ENDIF
 ;
 #IF ((PLATFORM == PLT_DUO) & TRUE)
@@ -1232,8 +1231,8 @@ BOOTWAIT:
 ;
 #IF (FPLED_ENABLE)
 	; NO STACK YET, SO CAN'T USE DIAG() MACRO
-	LD	A,DIAG_01
-	OUT	(FPLED_IO),A
+	; LD	A,DIAG_01
+	; OUT	(FPLED_IO),A
 #ENDIF
 #IF (LEDENABLE)
   #IF (LEDMODE == LEDMODE_STD)
@@ -1442,8 +1441,12 @@ Z280_INITZ:
 ;
 #IF (FPLED_ENABLE)
 	; NO STACK YET, SO CAN'T USE DIAG() MACRO
-	LD	A,DIAG_02
-	OUT	(FPLED_IO),A
+	; LD	A,DIAG_02
+	; OUT	(FPLED_IO),A
+	IN	A,(FPLED_IO)	; READ
+	AND  %10001111     ; Clear 3 bits
+	OR   %00010000     ; Set diag bit 1
+	OUT	(FPLED_IO),A	; WRITE
 #ENDIF
 
 ;
@@ -6876,12 +6879,20 @@ FP_DETECTZ:
 ;
 FP_SETLEDS:
 	PUSH	HL			; SAVE HL
-	LD	L,A			; LED VALUE TO L
+	LD	L,A				; LED VALUE TO L
 	LD	A,(FPLED_ACTIVE)	; LEDS ACTIVE?
-	OR	A			; SET FLAGS
-	LD	A,L			; RESTORE REG A
-	JR	Z,FP_SETLEDS1		; BAIL OUT IF NOT ACTIVE
-	OUT	(FPLED_IO),A		; WRITE 
+	OR	A				; SET FLAGS
+	LD	A,L				; RESTORE REG A
+	JR	Z,FP_SETLEDS1	; BAIL OUT IF NOT ACTIVE
+	RLA					; Rotate left 4 times
+	RLA
+	RLA
+	RLA
+	LD	L,A				; LED VALUE TO L
+	IN	A,(FPLED_IO)	; READ
+	AND  %10001111     ; Clear 3 bits
+	OR   L              ; Set bits
+	OUT	(FPLED_IO),A	; WRITE
 FP_SETLEDS1:
 	POP	HL			; RESTORE HL
 	RET				; DONE
