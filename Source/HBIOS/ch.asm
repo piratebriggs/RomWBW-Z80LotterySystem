@@ -274,7 +274,7 @@ CH_STAT:
 	LD		C,PPI_PORTC
 	LD		B,$07				; A0=1
 	OUT		(C),B				; bit select
-	LD		C,$05				; RD#=0
+	LD		B,$05				; RD#=0
 	OUT		(C),B				; bit select
 	LD		B,$07				; RD#=1
 	OUT		(C),B				; bit select
