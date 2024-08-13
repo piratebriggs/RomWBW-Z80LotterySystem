@@ -296,7 +296,9 @@ DESC	.DB	"ROMWBW v", BIOSVER, ", Copyright (C) 2020, Wayne Warthen, GNU GPL v3",
 ;
 		.ORG	HCB_LOC
 HCB:
-		JP	HB_START
+		HALT
+		HALT
+		HALT
 ;
 CB_MARKER	.DB	'W',~'W'	; MARKER
 CB_VERSION	.DB	RMJ << 4 | RMN	; FIRST BYTE OF VERSION INFO
@@ -438,21 +440,6 @@ HBX_INVSP	.EQU	$ - 2
 	RET				; RETURN TO CALLER
 ;
 
-;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-;; Sets PII control word to value passed in A
-;; Uses : BC
-;; This will reset PortC which controls our lower 32k banking
-;; So we preserve the contents of Port C and restore after writing the control word
-;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-;
-#IF (PLATFORM == PLT_LOT)
-HBX_PII_MODE:
-	LD C, PPI_PORTC
-	IN B,(C)	; Save port C
-	OUT (PPI_CTL),A		; Write Control Word
-	OUT (C),B	; Reset port C
-	RET
-#ENDIF
 
 ;;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ;; BNKSEL - Switch Memory Bank to Bank in A.
@@ -652,19 +639,21 @@ HBX_ROM:
 ; We only have RAM Banks available
 ; So, we map HBIOS banks $80-$8F (RAM SELECT) to $08-$0F.
 ; And map $00-$0F (ROM SELECT) to $00-$07
-; This will de-select the CH376 and clear any diag leds
 ;
 	BIT	7,A				; BIT 7 SET REQUESTS RAM PAGE
 	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
-	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT
+	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT (Ensure ROM_EN is low)
 	ADD	A,8				; Skip "rom" banks
-	SET	7,A				; set bit 7 (CH376_CS#)
-	OUT	(PPI_PORTB),A	; DO IT
-	RET					; AND DONE
-;
 HBX_ROM:
-	SET	7,A				; set bit 7 (CH376_CS#)
 	OUT	(PPI_PORTB),A	; DO IT
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
 	RET					; DONE
 #ENDIF
 ;
@@ -1185,15 +1174,9 @@ Z280_BOOTERR	.TEXT	"\r\n\r\n*** Application mode boot not supported under Z280 n
 	IM	1			; INTERRUPT MODE 1
 ;
 #IF (PLATFORM == PLT_LOT)
-	; Init PPI Control Word
+	; Init PPI
 	LD A,PPI_CTL_DAT 		; Load PPI control data
-	OUT (PPI_CTL),A		; Set PPI Control Word
-	; SET CH376 CS# = 1
-	LD A,$80 				; 
-	OUT (PPI_PORTB),A		; 
-	; SET CH376 WR#, RD#, A0 = 1
-	LD A,$07 				; 
-	OUT (PPI_PORTC),A		; 
+	OUT (PPI_CTL),A			; Set PPI Control Word
 #ENDIF
 ;
 #IF ((PLATFORM == PLT_DUO) & TRUE)
@@ -1231,8 +1214,8 @@ BOOTWAIT:
 ;
 #IF (FPLED_ENABLE)
 	; NO STACK YET, SO CAN'T USE DIAG() MACRO
-	; LD	A,DIAG_01
-	; OUT	(FPLED_IO),A
+	LD	A,DIAG_01
+	OUT	(FPLED_IO),A
 #ENDIF
 #IF (LEDENABLE)
   #IF (LEDMODE == LEDMODE_STD)
@@ -1441,12 +1424,8 @@ Z280_INITZ:
 ;
 #IF (FPLED_ENABLE)
 	; NO STACK YET, SO CAN'T USE DIAG() MACRO
-	; LD	A,DIAG_02
-	; OUT	(FPLED_IO),A
-	IN	A,(FPLED_IO)	; READ
-	AND  %10001111     ; Clear 3 bits
-	OR   %00010000     ; Set diag bit 1
-	OUT	(FPLED_IO),A	; WRITE
+	LD	A,DIAG_02
+	OUT	(FPLED_IO),A
 #ENDIF
 
 ;
@@ -3397,9 +3376,6 @@ HB_INITTBL:
 #ENDIF
 #IF (DS7RTCENABLE)
 	.DW	DS7RTC_INIT
-#ENDIF
-#IF (DS1216RTCENABLE)
-	.DW	DS1216RTC_INIT
 #ENDIF
 #IF (RP5RTCENABLE)
 	.DW	RP5RTC_INIT
@@ -6349,15 +6325,6 @@ SIZ_DS7RTC	.EQU	$ - ORG_DS7RTC
 		.ECHO	" bytes.\n"
 #ENDIF
 ;
-#IF (DS1216RTCENABLE)
-ORG_DS1216RTC	.EQU	$
-  #INCLUDE "ds1216rtc.asm"
-SIZ_DS1216RTC	.EQU	$ - ORG_DS1216RTC
-		.ECHO	"DS1216RTC occupies "
-		.ECHO	SIZ_DS1216RTC
-		.ECHO	" bytes.\n"
-#ENDIF
-;
 #IF (INTRTCENABLE)
 ORG_INTRTC	.EQU	$
   #INCLUDE "intrtc.asm"
@@ -6891,20 +6858,12 @@ FP_DETECTZ:
 ;
 FP_SETLEDS:
 	PUSH	HL			; SAVE HL
-	LD	L,A				; LED VALUE TO L
+	LD	L,A			; LED VALUE TO L
 	LD	A,(FPLED_ACTIVE)	; LEDS ACTIVE?
-	OR	A				; SET FLAGS
-	LD	A,L				; RESTORE REG A
-	JR	Z,FP_SETLEDS1	; BAIL OUT IF NOT ACTIVE
-	RLA					; Rotate left 4 times
-	RLA
-	RLA
-	RLA
-	LD	L,A				; LED VALUE TO L
-	IN	A,(FPLED_IO)	; READ
-	AND  %10001111     ; Clear 3 bits
-	OR   L              ; Set bits
-	OUT	(FPLED_IO),A	; WRITE
+	OR	A			; SET FLAGS
+	LD	A,L			; RESTORE REG A
+	JR	Z,FP_SETLEDS1		; BAIL OUT IF NOT ACTIVE
+	OUT	(FPLED_IO),A		; WRITE 
 FP_SETLEDS1:
 	POP	HL			; RESTORE HL
 	RET				; DONE
