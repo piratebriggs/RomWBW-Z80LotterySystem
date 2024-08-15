@@ -13,16 +13,6 @@
 ; the code for these interfaces is included as needed.  See
 ; chusb.asm and chsd.asm.
 ;
-
-CH0_CS_MSK	.EQU	01111111B	; Port B, Bit 7
-
-CH0_WR_SET	.EQU	00000001B	; PC0 = WR
-CH0_WR_CLR	.EQU	00000000B
-CH0_RD_SET	.EQU	00000101B	; PC2 = RD
-CH0_RD_CLR	.EQU	00000100B
-CH0_A0_SET	.EQU	00000111B	; PC3 = A0
-CH0_A0_CLR	.EQU	00000110B
-;
 ; CH DEVICE TYPES
 ;
 CHTYP_NONE	.EQU	0		; NONE
@@ -116,10 +106,7 @@ CH_CFG0:	; DEVICE 0
 	.DW	CHSD_CFG0		; SD CARD SUB-DRIVER INIT ADR
 ;
 	.ECHO	"CH: IO="
-	.ECHO	PPI_PORTA
-	.ECHO	"\n"
-	.ECHO	"CH: CTL="
-	.ECHO	PPI_CTL
+	.ECHO	CH0BASE
 	.ECHO	"\n"
 #ENDIF
 ;
@@ -247,102 +234,32 @@ CH_INIT4:
 ; SEND COMMAND IN A
 ;
 CH_CMD:
-	PUSH	BC
-	PUSH	AF
-	IN		A,(PPI_PORTB)		; READ
-	AND		CH0_CS_MSK      	; Clear CS#
-	OUT		(PPI_PORTB),A		; WRITE
-	LD		C,PPI_PORTC
-	LD		B,$07				; A0=1
-	OUT		(C),B				; bit select
-	;
-	POP		AF
-	OUT		(PPI_PORTA),A		; write data
-	;
-	LD		B,$06				; WR#=0
-	OUT		(C),B				; bit select
-	LD		B,$07				; WR#=1
-	OUT		(C),B				; bit select
-	POP		BC
+	LD	C,(IY+CH_IOBASE)	; BASE PORT
+	INC	C			; BUMP TO CMD PORT
+	OUT	(C),A			; SEND COMMAND
 	CALL	CH_NAP			; *DEBUG*
 	RET
 ;
 ; GET STATUS
 ;
 CH_STAT:
-	PUSH	BC
-	LD		C,PPI_PORTC
-	LD		B,$07				; A0=1
-	OUT		(C),B				; bit select
-	LD		B,$05				; RD#=0
-	OUT		(C),B				; bit select
-	LD		B,$07				; RD#=1
-	OUT		(C),B				; bit select
-	;
-	IN		A,(PPI_PORTA)			; read data
-	;
-	POP		BC
+	LD	C,(IY+CH_IOBASE)	; BASE PORT
+	INC	C			; BUMP TO CMD PORT
+	IN	A,(C)			; READ STATUS
 	RET
 ;
 ; READ A BYTE FROM DATA PORT
 ;
 CH_RD:
-	PUSH	BC
-	LD		C,PPI_PORTC
-	LD		B,$03				; A0=0
-	OUT		(C),B				; bit select
-	LD		B,$01				; RD#=0
-	OUT		(C),B				; bit select
-	LD		B,$03				; RD#=1
-	OUT		(C),B				; bit select
-	;
-	IN		A,(PPI_PORTA)		; read data
-	;
-	POP		BC
-	RET
-;
-; READ A BYTE WITHOUT SETUP
-; USES: C
-; RETURNS: A
-;
-CH_RD_FAST:
-	LD		A,$01					; RD#=0
-	OUT		(PPI_PORTC),A			; bit select
-	LD		A,$03					; RD#=0
-	OUT		(PPI_PORTC),A			; bit select
-	;
-	IN		A,(PPI_PORTA)		; read data
+	LD	C,(IY+CH_IOBASE)	; BASE PORT
+	IN	A,(C)			; READ BYTE
 	RET
 ;
 ; WRITE A BYTE TO DATA PORT
 ;
 CH_WR:
-	PUSH	BC
-	LD		C,PPI_PORTC
-	LD		B,$03				; A0=0
-	OUT		(C),B				; bit select
-	;
-	OUT		(PPI_PORTA),A		; write data
-	;
-	LD		B,$02				; WR#=0
-	OUT		(C),B				; bit select
-	LD		B,$03				; WR#=1
-	OUT		(C),B				; bit select
-	POP		BC
-	RET
-;
-; WRITE A BYTE WITHOUT SETUP
-; USES: C, A
-;
-CH_WR_FAST:
-	LD		C,PPI_PORTC
-	;
-	OUT		(PPI_PORTA),A		; write data
-	;
-	LD		A,$02				; WR#=0
-	OUT		(C),A				; bit select
-	LD		A,$03				; WR#=1
-	OUT		(C),A				; bit select
+	LD	C,(IY+CH_IOBASE)	; BASE PORT
+	OUT	(C),A			; READ BYTE
 	RET
 ;
 ; SMALL DELAY REQUIRED AT STRATEGIC LOCATIONS
