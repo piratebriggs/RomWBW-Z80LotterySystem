@@ -646,14 +646,6 @@ HBX_ROM:
 	ADD	A,8				; Skip "rom" banks
 HBX_ROM:
 	OUT	(PPI_PORTB),A	; DO IT
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
 	RET					; DONE
 #ENDIF
 ;
