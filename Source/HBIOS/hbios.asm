@@ -645,7 +645,10 @@ HBX_ROM:
 	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT (Ensure ROM_EN is low)
 	ADD	A,8				; Skip "rom" banks
 HBX_ROM:
-	OUT	(PPI_PORTB),A	; DO IT
+	PUSH BC
+	LD   BC,$0064
+	OUT	 (C),A			; DO IT
+	POP  BC
 	RET					; DONE
 #ENDIF
 ;
