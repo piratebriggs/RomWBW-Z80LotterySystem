@@ -643,7 +643,7 @@ HBX_ROM:
 	BIT	7,A				; BIT 7 SET REQUESTS RAM PAGE
 	JR	Z,HBX_ROM		; NOT SET, SELECT ROM PAGE
 	RES	7,A				; RAM PAGE REQUESTED: CLEAR ROM BIT (Ensure ROM_EN is low)
-	ADD	A,8				; Skip "rom" banks
+	; ADD	A,8				; Skip "rom" banks
 HBX_ROM:
 	PUSH BC
 	LD   BC,$0064
